@@ -1,0 +1,185 @@
+import numpy as np
+import random
+import sys
+sys.setrecursionlimit(10**7)
+
+GRID_SIZE = 10
+OBSTACLE_PROB = 0.15
+MAX_PATHS = 1000  # max number of paths to find with DFS (to avoid explosion)
+
+def generate_grid(size, obstacle_prob):
+    grid = np.zeros((size, size), dtype=int)
+    for i in range(size):
+        for j in range(size):
+            if random.random() < obstacle_prob:
+                grid[i, j] = 1
+    grid[0, 0] = 0
+    grid[size - 1, size - 1] = 0
+    return grid
+
+def print_simple_grid(grid):
+    print("\nInitial grid (before pathfinding):")
+    for r in range(GRID_SIZE):
+        row_str = ''
+        for c in range(GRID_SIZE):
+            if (r, c) == (0, 0):
+                row_str += 'S '
+            elif (r, c) == (GRID_SIZE-1, GRID_SIZE-1):
+                row_str += 'G '
+            elif grid[r, c] == 1:
+                row_str += '# '
+            else:
+                row_str += '. '
+        print(row_str)
+
+grid = generate_grid(GRID_SIZE, OBSTACLE_PROB)
+print_simple_grid(grid)
+
+ACTIONS = ['up', 'down', 'left', 'right']
+Q = np.zeros((GRID_SIZE, GRID_SIZE, len(ACTIONS)))
+
+alpha = 0.1
+gamma = 0.9
+epsilon = 1.0
+epsilon_min = 0.05
+epsilon_decay = 0.995
+episodes = 15000
+max_steps = 200
+
+def valid_position(pos):
+    r, c = pos
+    return 0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE and grid[r, c] == 0
+
+def get_next_state(state, action):
+    r, c = state
+    if action == 'up':
+        r -= 1
+    elif action == 'down':
+        r += 1
+    elif action == 'left':
+        c -= 1
+    elif action == 'right':
+        c += 1
+    next_state = (r, c)
+    if valid_position(next_state):
+        return next_state
+    else:
+        return state
+
+def get_reward(state, next_state):
+    if next_state == (GRID_SIZE - 1, GRID_SIZE - 1):
+        return 100
+    elif next_state == state:
+        return -10
+    else:
+        return -1
+
+def choose_action(state, epsilon):
+    r, c = state
+    if random.uniform(0, 1) < epsilon:
+        return random.choice(range(len(ACTIONS)))
+    else:
+        return np.argmax(Q[r, c])
+
+# --- DFS to find all possible paths ---
+all_paths = []
+
+def dfs_paths(current, goal, visited, path):
+    if len(all_paths) >= MAX_PATHS:
+        return  # stop if too many paths
+
+    if current == goal:
+        all_paths.append(path[:])
+        return
+
+    r, c = current
+    visited.add(current)
+
+    for action in ACTIONS:
+        next_state = get_next_state(current, action)
+        if next_state != current and next_state not in visited:
+            path.append(next_state)
+            dfs_paths(next_state, goal, visited, path)
+            path.pop()
+
+    visited.remove(current)
+
+print("Finding all possible paths (this may take some time)...")
+dfs_paths((0, 0), (GRID_SIZE - 1, GRID_SIZE - 1), set(), [(0, 0)])
+print(f"Found {len(all_paths)} possible paths (limited to {MAX_PATHS})")
+
+print("Training Q-learning agent...")
+for episode in range(episodes):
+    state = (0, 0)
+    for step in range(max_steps):
+        action_idx = choose_action(state, epsilon)
+        action = ACTIONS[action_idx]
+        next_state = get_next_state(state, action)
+        reward = get_reward(state, next_state)
+
+        r, c = state
+        nr, nc = next_state
+
+        old_value = Q[r, c, action_idx]
+        next_max = np.max(Q[nr, nc])
+
+        Q[r, c, action_idx] = old_value + alpha * (reward + gamma * next_max - old_value)
+
+        state = next_state
+        if state == (GRID_SIZE - 1, GRID_SIZE - 1):
+            break
+
+    if epsilon > epsilon_min:
+        epsilon *= epsilon_decay
+
+# Extract best RL path
+state = (0, 0)
+best_path = [state]
+for _ in range(max_steps):
+    r, c = state
+    action_idx = np.argmax(Q[r, c])
+    next_state = get_next_state(state, ACTIONS[action_idx])
+    if next_state == state:
+        break
+    best_path.append(next_state)
+    state = next_state
+    if state == (GRID_SIZE - 1, GRID_SIZE - 1):
+        break
+
+def print_grid_with_paths(grid, paths, best_path):
+    char_grid = [['.' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+
+    # Mark obstacles
+    for r in range(GRID_SIZE):
+        for c in range(GRID_SIZE):
+            if grid[r, c] == 1:
+                char_grid[r][c] = '#'
+
+    # Mark start and goal
+    char_grid[0][0] = 'S'
+    char_grid[GRID_SIZE-1][GRID_SIZE-1] = 'G'
+
+    # Mark all possible paths (first 10) with 'o'
+    for path in paths[:10]:
+        for (r, c) in path:
+            if char_grid[r][c] in ['.', 'o']:
+                if (r, c) != (0, 0) and (r, c) != (GRID_SIZE - 1, GRID_SIZE - 1) and char_grid[r][c] != '#':
+                    char_grid[r][c] = 'o'
+
+    # Mark best RL path with '*', overrides 'o'
+    for (r, c) in best_path:
+        if (r, c) != (0, 0) and (r, c) != (GRID_SIZE - 1, GRID_SIZE - 1):
+            char_grid[r][c] = '*'
+
+    print("\nGrid visualization with paths:")
+    for row in char_grid:
+        print(' '.join(row))
+
+print_grid_with_paths(grid, all_paths, best_path)
+
+print("\nSample possible paths (up to 10 shown):")
+for i, p in enumerate(all_paths[:10]):
+    print(f"Path {i+1} (length {len(p)}): {p}")
+
+print("\nBest RL path found:")
+print(best_path)
