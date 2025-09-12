@@ -1,0 +1,62 @@
+import numpy as np
+import gymnasium as gym
+
+# Fix for np.bool8 deprecation in newer numpy versions
+if not hasattr(np, 'bool8'):
+    np.bool8 = np.bool_
+
+# Create FrozenLake environment
+env = gym.make("FrozenLake-v1", is_slippery=True)  # 4x4 default map
+
+# Random policy generator
+def random_policy(state_space, action_space):
+    policy = np.ones((state_space, action_space)) / action_space
+    return policy
+
+# TD(0) Evaluation
+def td_zero(env, policy, alpha=0.1, gamma=0.99, episodes=5000):
+    V = np.zeros(env.observation_space.n)
+    for _ in range(episodes):
+        state, _ = env.reset()
+        done = False
+        while not done:
+            action = np.random.choice(env.action_space.n, p=policy[state])
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+            V[state] += alpha * (reward + gamma * V[next_state] - V[state])
+            state = next_state
+    return V
+
+# Q-Learning
+def q_learning(env, alpha=0.8, gamma=0.99, epsilon=0.2, episodes=5000):
+    Q = np.zeros((env.observation_space.n, env.action_space.n))
+    for _ in range(episodes):
+        state, _ = env.reset()
+        done = False
+        while not done:
+            # Epsilon-greedy action selection
+            if np.random.rand() < epsilon:
+                action = env.action_space.sample()
+            else:
+                action = np.argmax(Q[state])
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+            best_next_action = np.argmax(Q[next_state])
+            Q[state][action] += alpha * (reward + gamma * Q[next_state][best_next_action] - Q[state][action])
+            state = next_state
+    # Derive policy from Q
+    policy = np.argmax(Q, axis=1)
+    return policy.reshape((4, 4))
+
+# Run TD(0)
+print("🔄 Running TD(0)...")
+policy = random_policy(env.observation_space.n, env.action_space.n)
+V = td_zero(env, policy)
+print("\n🔹 Value Function from TD(0):")
+print(np.round(V.reshape((4, 4)), 2))
+
+# Run Q-Learning
+print("\n🔄 Running Q-Learning...")
+optimal_policy = q_learning(env)
+print("\n🔹 Optimal Policy from Q-learning (0=Left, 1=Down, 2=Right, 3=Up):")
+print(optimal_policy)
