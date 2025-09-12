@@ -1,0 +1,40 @@
+import matplotlib.pyplot as plt
+from collections import Counter
+
+# Define the rotating food cycle pattern
+food_cycle = ['Dosa', 'Idli', 'Pongal']
+
+# Get today's food from user input
+today = input("Enter today's food (Idli/Dosa/Pongal): ").strip().lower()
+
+# Validate input
+if today not in ['idli', 'dosa', 'pongal']:
+    print("❌ Invalid input. Please enter 'Idli', 'Dosa', or 'Pongal'.")
+else:
+    # Adjust the rotation so the cycle starts from today
+    start_index = food_cycle.index(today.capitalize())
+    rotated_cycle = food_cycle[start_index:] + food_cycle[:start_index]
+
+    # Predict the next 30 days
+    predictions = []
+    for i in range(30):
+        food = rotated_cycle[i % len(rotated_cycle)]
+        predictions.append(food)
+
+    # Print the predictions
+    print("\n🔁 Food prediction for next 30 days:")
+    for i, food in enumerate(predictions, 1):
+        print(f"Day {i}: {food}")
+
+    # Count occurrences of each food
+    food_counts = Counter(predictions)
+
+    # Plot the prediction chart
+    plt.figure(figsize=(8, 6))
+    plt.bar(food_counts.keys(), food_counts.values(), color=['#f4a261', '#2a9d8f', '#e76f51'])
+    plt.title('Next 30 Days Food Prediction')
+    plt.ylabel('Number of Days')
+    plt.xlabel('Food Item')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
