@@ -1,0 +1,68 @@
+import numpy as np
+
+# Define states and actions
+states = ["Clean", "Dirty", "Charging"]
+state_idx = {s: i for i, s in enumerate(states)}
+
+actions = ["clean", "charge", "idle"]
+action_idx = {a: i for i, a in enumerate(actions)}
+
+# Initialize transition probabilities T[state][action][next_state]
+T = np.zeros((3, 3, 3))
+
+# Transitions for each state-action pair
+# From Clean state
+T[state_idx["Clean"]][action_idx["idle"]]   = [0.8, 0.2, 0.0]
+T[state_idx["Clean"]][action_idx["clean"]]  = [1.0, 0.0, 0.0]
+T[state_idx["Clean"]][action_idx["charge"]] = [0.0, 0.0, 1.0]
+
+# From Dirty state
+T[state_idx["Dirty"]][action_idx["idle"]]   = [0.0, 0.9, 0.1]
+T[state_idx["Dirty"]][action_idx["clean"]]  = [1.0, 0.0, 0.0]
+T[state_idx["Dirty"]][action_idx["charge"]] = [0.0, 0.0, 1.0]
+
+# From Charging state
+T[state_idx["Charging"]][action_idx["idle"]]   = [0.0, 0.2, 0.8]
+T[state_idx["Charging"]][action_idx["clean"]]  = [0.5, 0.5, 0.0]
+T[state_idx["Charging"]][action_idx["charge"]] = [0.0, 0.0, 1.0]
+
+# Rewards R[state][action]
+R = np.zeros((3, 3))
+R[state_idx["Dirty"]][action_idx["clean"]]   = +10
+R[state_idx["Dirty"]][action_idx["idle"]]    = -5
+R[state_idx["Charging"]][action_idx["charge"]] = +5
+R[state_idx["Clean"]][action_idx["idle"]]    = +1
+
+# Value Iteration parameters
+gamma = 0.9
+threshold = 1e-4
+V = np.zeros(3)  # State values
+policy = np.zeros(3, dtype=int)  # Best action per state
+
+# Value Iteration algorithm
+iteration = 0
+while True:
+    delta = 0
+    for s in range(3):
+        value_list = []
+        for a in range(3):
+            expected_value = R[s][a] + gamma * np.sum(T[s][a] * V)
+            value_list.append(expected_value)
+        max_value = max(value_list)
+        delta = max(delta, abs(V[s] - max_value))
+        V[s] = max_value
+        policy[s] = np.argmax(value_list)
+    iteration += 1
+    if delta < threshold:
+        break
+
+# Output results
+print("=== Optimal Values ===")
+for s in range(3):
+    print(f"State {states[s]}: {V[s]:.2f}")
+
+print("\n=== Optimal Policy ===")
+for s in range(3):
+    print(f"If in state '{states[s]}': do action '{actions[policy[s]]}'")
+
+print(f"\nConverged in {iteration} iterations.")
