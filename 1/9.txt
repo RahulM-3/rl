@@ -1,0 +1,79 @@
+import numpy as np
+import gymnasium as gym
+import random
+
+def sarsa_frozenlake(env, episodes=2000, max_steps=100, alpha=0.1, gamma=0.99,
+                     epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
+    n_states = env.observation_space.n
+    n_actions = env.action_space.n
+
+    # Initialize Q-table with zeros
+    Q = np.zeros((n_states, n_actions))
+
+    def epsilon_greedy(state, epsilon):
+        if random.random() < epsilon:
+            return env.action_space.sample()  # Explore
+        else:
+            return np.argmax(Q[state])         # Exploit
+
+    rewards_all_episodes = []
+
+    for episode in range(episodes):
+        state, _ = env.reset()
+        action = epsilon_greedy(state, epsilon)
+        total_rewards = 0
+
+        for step in range(max_steps):
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+
+            next_action = epsilon_greedy(next_state, epsilon)
+
+            # SARSA update rule
+            td_target = reward + gamma * Q[next_state][next_action] * (not done)
+            td_error = td_target - Q[state][action]
+            Q[state][action] += alpha * td_error
+
+            state, action = next_state, next_action
+            total_rewards += reward
+
+            if done:
+                break
+
+        rewards_all_episodes.append(total_rewards)
+
+        # Decay epsilon to reduce exploration over time
+        if epsilon > epsilon_min:
+            epsilon *= epsilon_decay
+
+        # Print progress every 500 episodes
+        if (episode + 1) % 500 == 0:
+            avg_reward = np.mean(rewards_all_episodes[-500:])
+            print(f"Episode {episode + 1}: Average Reward: {avg_reward:.3f}")
+
+    return Q, rewards_all_episodes
+
+def test_policy(env, Q, max_steps=100):
+    state, _ = env.reset()
+    print(f"Start state: {state}")
+    for step in range(max_steps):
+        action = np.argmax(Q[state])
+        next_state, reward, terminated, truncated, _ = env.step(action)
+        done = terminated or truncated
+        print(f"Step {step+1}: Took action {action}, moved to state {next_state}, reward {reward}")
+        state = next_state
+        if done:
+            print("Episode finished.")
+            break
+
+if __name__ == "__main__":
+    env = gym.make("FrozenLake-v1", is_slippery=False)
+    Q_table, rewards = sarsa_frozenlake(env)
+
+    print("\nLearned Q-table:")
+    print(np.round(Q_table, 2))
+
+    print("\nTesting learned policy:")
+    test_policy(env, Q_table)
+
+    env.close()
