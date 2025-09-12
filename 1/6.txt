@@ -1,0 +1,104 @@
+import numpy as np
+import gymnasium as gym # Import gymnasium
+import random
+from collections import defaultdict
+
+# Fix np.bool8 deprecation if needed
+if not hasattr(np, 'bool8'):
+    np.bool8 = np.bool_
+
+# Create environment
+env = gym.make("FrozenLake-v1", is_slippery=True)
+
+# -------------------------------------
+# Monte Carlo Prediction
+# -------------------------------------
+def mc_prediction(policy, env, episodes=5000, gamma=0.9):
+    value_table = defaultdict(float)
+    returns = defaultdict(list)
+
+    for _ in range(episodes):
+        state, _ = env.reset() # Updated to unpack the tuple
+        episode = []
+
+        while True:
+            action = policy(state)
+            next_state, reward, terminated, truncated, info = env.step(action) # Updated to unpack the tuple
+            done = terminated or truncated
+            episode.append((state, action, reward))
+            state = next_state
+            if done:
+                break
+
+        G = 0
+        visited = set()
+        for t in reversed(range(len(episode))):
+            state_t, _, reward_t = episode[t]
+            G = gamma * G + reward_t
+            if state_t not in visited:
+                returns[state_t].append(G)
+                value_table[state_t] = np.mean(returns[state_t])
+                visited.add(state_t)
+
+    return value_table
+
+def random_policy(state):
+    return env.action_space.sample()
+
+v = mc_prediction(random_policy, env)
+print("Value function from Monte Carlo Prediction:")
+for s in sorted(v):
+    print(f"State {s}: V = {v[s]:.4f}")
+
+# -------------------------------------
+# Monte Carlo Control (ε-greedy)
+# -------------------------------------
+def mc_control_epsilon_greedy(env, episodes=10000, gamma=0.9, epsilon=0.1):
+    Q = defaultdict(lambda: np.zeros(env.action_space.n))
+    returns = defaultdict(list)
+    policy = defaultdict(lambda: np.random.choice(env.action_space.n))
+
+    for _ in range(episodes):
+        state, _ = env.reset() # Updated to unpack the tuple
+        episode = []
+
+        while True:
+            if random.uniform(0, 1) < epsilon:
+                action = env.action_space.sample()
+            else:
+                action = np.argmax(Q[state])
+
+            next_state, reward, terminated, truncated, info = env.step(action) # Updated to unpack the tuple
+            done = terminated or truncated
+            episode.append((state, action, reward))
+            state = next_state
+            if done:
+                break
+
+        G = 0
+        visited_sa = set()
+        for t in reversed(range(len(episode))):
+            state_t, action_t, reward_t = episode[t]
+            G = gamma * G + reward_t
+            if (state_t, action_t) not in visited_sa:
+                returns[(state_t, action_t)].append(G)
+                Q[state_t][action_t] = np.mean(returns[(state_t, action_t)])
+                policy[state_t] = np.argmax(Q[state_t])
+                visited_sa.add((state_t, action_t))
+
+    return Q, policy
+
+Q, learned_policy = mc_control_epsilon_greedy(env)
+
+print("\nLearned Policy (0=Left, 1=Down, 2=Right, 3=Up):")
+# Iterate through all possible states (0 to env.observation_space.n - 1)
+for s in range(env.observation_space.n):
+    # Check if the state exists in the learned policy before printing
+    if s in learned_policy:
+        print(f"State {s}: Best Action = {learned_policy[s]}")
+    else:
+        # Handle states not visited during training, or states with no learned action
+        # For FrozenLake, all states are reachable, so this case might not occur
+        # with sufficient episodes, but it's good practice for general MDPs.
+        # A default action or message could be provided here if needed.
+        print(f"State {s}: No learned action.")
