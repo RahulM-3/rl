@@ -1,1 +1,10 @@
-
+1. Q-Learning agent to play Tic-Tac-Toe.
+2. N-armed bandit problem with e-greedy strategy.
+3. Markovian Decision Process
+4. Markov Chain for simple prediction
+5. Basic MDP solver using Value Iteration.
+6. Monte Carlo methods for prediction and control.
+7. TD (0) and Q-Learning algorithms for simple environments
+8. Policy evaluation for a given policy.
+9. SARSA algorithm
+10. A small GRID game with reinforcement learning
